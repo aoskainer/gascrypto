@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Cache Dependencies
+        id: cache-dependencies
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node_modules-${{ env.NODE_VERSION }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node_modules-${{ env.NODE_VERSION }}-
+            ${{ runner.os }}-node_modules-
+
+      - name: Install clasp
+        if: ${{ steps.cache-dependencies.outputs.cache-hit != 'true' }}
+        run: npm install -g clasp
+
+      - name: Create .clasprc.json
+        env:
+          BASE64_ENCODED_CLASPRC_JSON: ${{ secrets.BASE64_ENCODED_CLASPRC_JSON }}
+        run: |
+          echo $BASE64_ENCODED_CLASPRC_JSON | base64 -d > ~/.clasprc.json
+
+      - name: Create .clasp.json
+        env:
+          BASE64_ENCODED_CLASP_JSON: ${{ secrets.BASE64_ENCODED_CLASP_JSON }}
+        run: |
+          echo $BASE64_ENCODED_CLASP_JSON | base64 -d > .clasp.json
+
+      - name: Deploy to Google App Script
+        run: clasp push
